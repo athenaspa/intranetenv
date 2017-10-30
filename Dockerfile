@@ -44,16 +44,6 @@ RUN php /tmp/composer-setup.php --no-ansi --install-dir=/usr/local/bin --filenam
 # Set the permissions
 RUN chmod 0755 /usr/local/bin/*
 
-# Add github to known hosts and set access token
-RUN { \
-  echo '{'; \
-  echo '    "github-oauth": { '; \
-  echo '        "github.com": "1172ae69af04f9110bb0b29ed2f5356de0641662"'; \
-  echo '    } '; \
-  echo '}'; \
-} >> /root/.composer/auth.json
-RUN mkdir -p ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
-
 # See https://secure.php.net/manual/en/opcache.installation.php
 RUN { \
   echo 'opcache.memory_consumption=128'; \
