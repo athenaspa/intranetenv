@@ -25,11 +25,14 @@ RUN \
   libxml2-dev \
   libcurl3 \
   libcurl4-gnutls-dev \
-  libgearman-dev \
-  gearman-tools \
-  gearman-job-server \
   && docker-php-ext-configure gd --with-png-dir=/usr --with-jpeg-dir=/usr \
   && docker-php-ext-install opcache gd mbstring pdo pdo_mysql pdo_pgsql zip mysqli calendar json curl xml soap
+
+# Install wkhtmltopdf
+RUN cd /root && \
+  wget http://download.gna.org/wkhtmltopdf/0.12/0.12.4/wkhtmltox-0.12.4_linux-generic-amd64.tar.xz && \
+  tar -xvf wkhtmltox-0.12.4_linux-generic-amd64.tar.xz && \
+  mv -v wkhtmltox/bin/* /usr/local/bin/
 
 # Install Composer
 RUN curl -o /tmp/composer-setup.php https://getcomposer.org/installer \
@@ -40,6 +43,16 @@ RUN php /tmp/composer-setup.php --no-ansi --install-dir=/usr/local/bin --filenam
 
 # Set the permissions
 RUN chmod 0755 /usr/local/bin/*
+
+# Add github to known hosts and set access token
+RUN { \
+  echo '{'; \
+  echo '    "github-oauth": { '; \
+  echo '        "github.com": "1172ae69af04f9110bb0b29ed2f5356de0641662"'; \
+  echo '    } '; \
+  echo '}'; \
+} >> /root/.composer/auth.json
+RUN mkdir -p ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 # See https://secure.php.net/manual/en/opcache.installation.php
 RUN { \
@@ -61,16 +74,20 @@ RUN {  \
   echo 'date.timezone = Europe/Rome'; \
   echo 'error_reporting = E_ALL & ~E_NOTICE & ~E_WARNING'; \
   echo 'session.auto_start = 0'; \
-  echo 'extension = gearman.so'; \
   echo ' '; \
   echo ';;;;;;;;;; Sendmail ;;;;;;;;;;'; \
   echo 'sendmail_path = /usr/sbin/ssmtp -t'; \
 	} >> /usr/local/etc/php/conf.d/custom-php-settings.ini
+
+# Force to use mailcatcher
+RUN echo "mailhub=mailcatcher:25\nUseTLS=NO\nFromLineOverride=YES" > /etc/ssmtp/ssmtp.conf
 
 # This will fix problem with php5 session
 RUN mkdir -p /var/lib/php5/sessions
 RUN chown -R www-data:www-data /var/lib/php5/sessions
 RUN chmod -R 775 /var/lib/php5/sessions
 
-# Force to use mailcatcher
-RUN echo "mailhub=mailcatcher:25\nUseTLS=NO\nFromLineOverride=YES" > /etc/ssmtp/ssmtp.conf
+# This will fix problem with user permission on OSX
+RUN usermod -u 1000 www-data
+
+WORKDIR /var/www/html
