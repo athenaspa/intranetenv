@@ -1,83 +1,104 @@
-FROM php:5.6-apache
 
-MAINTAINER Emanuel Righetto <e.righetto@athena.eu>
+FROM php:fpm
 
-RUN a2enmod rewrite
+RUN apt-get update && apt-get -y install wget bsdtar libaio1 && \
+ wget -qO- https://raw.githubusercontent.com/caffeinalab/php-fpm-oci8/master/oracle/instantclient-basic-linux.x64-12.2.0.1.0.zip | bsdtar -xvf- -C /usr/local && \
+ wget -qO- https://raw.githubusercontent.com/caffeinalab/php-fpm-oci8/master/oracle/instantclient-sdk-linux.x64-12.2.0.1.0.zip | bsdtar -xvf-  -C /usr/local && \
+ wget -qO- https://raw.githubusercontent.com/caffeinalab/php-fpm-oci8/master/oracle/instantclient-sqlplus-linux.x64-12.2.0.1.0.zip | bsdtar -xvf- -C /usr/local && \
+ ln -s /usr/local/instantclient_12_2 /usr/local/instantclient && \
+ ln -s /usr/local/instantclient/libclntsh.so.* /usr/local/instantclient/libclntsh.so && \
+ ln -s /usr/local/instantclient/lib* /usr/lib && \
+ ln -s /usr/local/instantclient/sqlplus /usr/bin/sqlplus && \
+ docker-php-ext-configure oci8 --with-oci8=instantclient,/usr/local/instantclient && \
+ docker-php-ext-install oci8 && \
+ rm -rf /var/lib/apt/lists/* && \
+ php -v
 
-RUN \
-  apt-get update && \
-  apt-get -f install -y \
-  fontconfig \
-  libxrender1 \
-  libxext6 \
-  libfontconfig1 \
-  nano \
-  git \
-  wget \
-  mysql-client \
-  ssmtp \
-  patch \
-  unzip \
-  openssh-server \
-  libpng12-dev \
-  libjpeg-dev \
-  libpq-dev \
-  libxml2-dev \
-  libcurl3 \
-  libcurl4-gnutls-dev \
-  && docker-php-ext-configure gd --with-png-dir=/usr --with-jpeg-dir=/usr \
-  && docker-php-ext-install opcache gd mbstring pdo pdo_mysql pdo_pgsql zip mysqli calendar json curl xml soap
+RUN	mkdir -p /usr/src/php_oci && \
+  cd /usr/src/php_oci && \
+  wget http://php.net/distributions/php-$PHP_VERSION.tar.gz && \
+  tar xfvz php-$PHP_VERSION.tar.gz && \
+  cd php-$PHP_VERSION/ext/pdo_oci && \
+  phpize && \
+  ./configure --with-pdo-oci=instantclient,/usr/local/instantclient,12.1 && \
+  make && \
+  make install && \
+  echo extension=pdo_oci.so > /usr/local/etc/php/conf.d/pdo_oci.ini && \
+  php -v
 
-# Install wkhtmltopdf
-RUN cd /root && \
-  wget https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.4/wkhtmltox-0.12.4_linux-generic-amd64.tar.xz && \
-  tar -xvf wkhtmltox-0.12.4_linux-generic-amd64.tar.xz && \
-  mv -v wkhtmltox/bin/* /usr/local/bin/
+RUN apt-get install -y \
+        apt-transport-https \
+        ca-certificates \
+        locales \
+        gnupg \
+        wget \
+        curl \
+        net-tools \
+        tzdata \
+        zip \
+        unzip \
+        bzip2 \
+        moreutils \
+        dnsutils \
+        openssh-client \
+        rsync \
+        git \
+        imagemagick \
+        graphicsmagick \
+        ghostscript \
+        nano
 
-# Install Composer
-RUN curl -o /tmp/composer-setup.php https://getcomposer.org/installer \
-  && curl -o /tmp/composer-setup.sig https://composer.github.io/installer.sig \
-  && php -r "if (hash('SHA384', file_get_contents('/tmp/composer-setup.php')) !== trim(file_get_contents('/tmp/composer-setup.sig'))) { unlink('/tmp/composer-setup.php'); echo 'Invalid installer' . PHP_EOL; exit(1); }"
-RUN php /tmp/composer-setup.php --no-ansi --install-dir=/usr/local/bin --filename=composer \
-	&& rm /tmp/composer-setup.php
+        # Libraries
+RUN apt-get install -y \
+        libldap-2.4-2 \
+        libxslt1.1 \
+        zlib1g \
+        libpng-dev \
+        libmcrypt4 \
+        libjpeg62-turbo-dev \
+        libfreetype6-dev \
+        # Dev and headers
+        libbz2-dev \
+        libicu-dev \
+        libldap2-dev \
+        libldb-dev \
+        libmcrypt-dev \
+        libxml2-dev \
+        libxslt1-dev \
+        zlib1g-dev \
+        libpng-dev
 
-# Set the permissions
-RUN chmod 0755 /usr/local/bin/*
+    # Install extensions
+RUN docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
+    && docker-php-ext-install \
+        bcmath \
+        bz2 \
+        calendar \
+        exif \
+        intl \
+        gettext \
+        mysqli \
+        hash \
+        pcntl \
+        pdo_mysql \
+        soap \
+        sockets \
+        tokenizer \
+        sysvmsg \
+        sysvsem \
+        sysvshm \
+        shmop \
+        xsl \
+        zip \
+        gd \
+        gettext \
+        opcache
 
-# See https://secure.php.net/manual/en/opcache.installation.php
-RUN { \
-  echo 'opcache.memory_consumption=128'; \
-  echo 'opcache.interned_strings_buffer=8'; \
-  echo 'opcache.max_accelerated_files=4000'; \
-  echo 'opcache.revalidate_freq=60'; \
-  echo 'opcache.fast_shutdown=1'; \
-  echo 'opcache.enable_cli=1'; \
-	} >> /usr/local/etc/php/conf.d/opcache-recommended.ini
+RUN pecl install apcu \
+    && pecl install redis \
+    && echo extension=apcu.so > /usr/local/etc/php/conf.d/apcu.ini \
+    && echo extension=redis.so > /usr/local/etc/php/conf.d/redis.ini
 
-# Set recommended PHP.ini settings
-RUN {  \
-  echo ';;;;;;;;;; General ;;;;;;;;;;'; \
-  echo 'memory_limit = 128M'; \
-  echo 'upload_max_filesize = 64M'; \
-  echo 'post_max_size = 64M'; \
-  echo 'max_execution_time = 600'; \
-  echo 'date.timezone = Europe/Rome'; \
-  echo 'error_reporting = E_ALL & ~E_NOTICE & ~E_WARNING'; \
-  echo 'session.auto_start = 0'; \
-  echo ' '; \
-  echo ';;;;;;;;;; Sendmail ;;;;;;;;;;'; \
-  echo 'sendmail_path = /usr/sbin/ssmtp -t'; \
-	} >> /usr/local/etc/php/conf.d/custom-php-settings.ini
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin/ --filename=composer
 
-# Force to use mailcatcher
-RUN echo "mailhub=mailcatcher:25\nUseTLS=NO\nFromLineOverride=YES" > /etc/ssmtp/ssmtp.conf
-
-# This will fix problem with php5 session
-RUN mkdir -p /var/lib/php5/sessions
-RUN chown -R www-data:www-data /var/lib/php5/sessions
-RUN chmod -R 775 /var/lib/php5/sessions
-
-# This will fix problem with user permission on OSX
-RUN usermod -u 1000 www-data
-
-WORKDIR /var/www/html
+VOLUME /etc/tnsnames.ora
