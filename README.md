@@ -1,3 +1,3 @@
-# intranetenv
+# php-fpm
 
-https://hub.docker.com/r/athenagroup/intranetenv
+https://hub.docker.com/r/athenagroup/php-fpm
