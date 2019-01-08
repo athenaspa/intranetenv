@@ -31,7 +31,10 @@ RUN mkdir -p /usr/src/php_oci && \
         echo extension=pdo_oci.so > /usr/local/etc/php/conf.d/pdo_oci.ini
 
 RUN docker-run-bootstrap && \
-        docker-image-cleanup        
+        docker-image-cleanup
+
+RUN usermod -aG sudo ${APPLICATION_USER} \
+        && echo "${APPLICATION_USER} ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers.d/${APPLICATION_USER}
 
 VOLUME /etc/tnsnames.ora
 
