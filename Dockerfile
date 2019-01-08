@@ -2,6 +2,7 @@
 FROM webdevops/php:7.2
 
 RUN apt-get update && apt-get install -y \
+        sudo \
         mysql-client \
         libaio1 \
         nano
